@@ -18,10 +18,16 @@ async function getTranscriber(onProgress?: (p: ModelProgress) => void) {
       // webpack often resolve incorrectly, so we let the browser's own ESM
       // loader fetch the right one directly.
       const { pipeline } = await import(/* webpackIgnore: true */ TRANSFORMERS_CDN_URL);
-      return pipeline("automatic-speech-recognition", "onnx-community/whisper-base", {
-        dtype: "q8",
-        progress_callback: onProgress,
-      });
+// NOTE: as of onnxruntime-web's current release, quantized ("q8"/"q4")
+// Whisper decoders fail session creation in the WASM backend with a
+// "Missing required scale" error (huggingface/transformers.js #1707).
+// fp32 is confirmed to work, so we use fp32 + the smaller "tiny.en"
+// model to keep the one-time download reasonable (~150MB) until that's
+// fixed upstream — at which point dtype: "q8" can go back to ~40MB.
+return pipeline("automatic-speech-recognition", "onnx-community/whisper-tiny.en", {
+  dtype: "fp32",
+  progress_callback: onProgress,
+});
     })();
   }
   return transcriberPromise;
